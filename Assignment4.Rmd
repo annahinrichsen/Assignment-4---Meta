@@ -1,0 +1,162 @@
+---
+title: "Assignment 4 - Applying meta-analytic priors"
+author: "Riccardo Fusaroli"
+date: "3/16/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readxl);library(brms);library(ggplot2);library(tibble);library(brmstools);library(data.table)
+
+
+meta_data = read_excel("Assignment4MetaData.xlsx")
+pitch_data = read_excel("Assignment4PitchDatav2.xlsx")
+
+```
+
+## Assignment 4
+
+In this assignment we do the following:
+- we reproduce the meta-analysis of pitch SD from last semester in a Bayesian framework
+- we reproduce the pitch SD in schizophrenia analysis from last semester using both a conservative and a meta-analytic prior
+- we assess the difference in model quality and estimates using the two priors.
+
+
+
+The questions you need to answer are: What are the consequences of using a meta-analytic prior? Evaluate the models with conservative and meta-analytic priors. Discuss the effects on estimates. Discuss the effects on model quality. Discuss the role that meta-analytic priors should have in scientific practice (- is there an disadvantage in conservative priors. is there a problem in replacing conservative priors with metanalytic priors - a few lines are enough). Should we systematically use them? Do they have drawbacks? 
+
+Should we use them to complement more conservative approaches? How does the use of meta-analytic priors you suggest reflect the skeptical and cumulative nature of science?
+
+### Step by step suggestions
+
+Step 1: Reproduce the meta-analysis of pitch sd from previous studies of voice in schizophrenia
+- the data is available as Assignment4MetaData.xlsx
+- Effect size (cohen's d), sd and variance are already calculated (you're welcome!)
+- Since we're only interested in getting a meta-analytic effect size, let's take a shortcut and use bromance magic (brms): https://mvuorre.github.io/post/2016/2016-09-29-bayesian-meta-analysis/    <- how to do last years meta analysis both using the bromance package instead 
+
+#own notes 
+regression model that estimates the overall effect size across all studies 
+
+```{r}
+
+#MeanES = mean effect size
+#varianceES
+#sdES
+
+
+meta_data$StudyID = as.factor(meta_data$StudyID)
+meta_data$StudyID = as.character(meta_data$StudyID)
+
+#brm = glmer(outcome ~ the effect of an intercept)
+Model = brm(MeanES|se(SdES) ~ 1 + (1|StudyID), data = meta_data, cores = 2, iter = 2000, chain = 2)
+
+
+#cores = the models take time to run, thereofore we split them on different processors 
+#chain
+#iter = how long time to look (I think)
+#priors = for this, we can use the default priors 
+
+
+
+forest(Model, show_data = TRUE, av_name = "Effect size")
+#fejl: Error in .f(.x[[i]], ...) : object 'Martínez-Sánchez et al. (2015)' not found
+
+```
+
+
+Step 2: Prepare the pitch SD data from last year
+- the data is available as Assignment4PitchData.csv (thanks Celine)
+- We do not know how to build random effects, yet. So we need to simplify the dataset to avoid interdependence between datapoint: How?  - we want only one data point pr. subject 
+- Also, let's standardize the data, so that they are compatible with our meta-analytic prior (Cohen's d is measured in SDs) - our analysis should follow the same scale. scale the data!
+
+```{r}
+
+#get an overall mean from the pitch on all the trials 
+overall_PitchMean = aggregate(pitch_data[, 6], list(pitch_data$ID), mean)
+#chnge the column names 
+setnames(overall_PitchMean, "Group.1", "ID")
+setnames(overall_PitchMean, "PitchMean", "Overall_PitchMean")
+
+Pitch_data_new = merge(overall_PitchMean, pitch_data, by = "ID")
+
+#get an overall sd from the pitch on all the trials 
+overall_PitchSd = aggregate(pitch_data[, 7], list(pitch_data$ID), mean)
+#chnge the column names 
+setnames(overall_PitchSd, "Group.1", "ID")
+setnames(overall_PitchSd, "PitchSD", "Overall_PitchSD")
+
+Pitch_data_new = merge(overall_PitchSd, Pitch_data_new, by = "ID")
+
+#standardize pitch mean
+Pitch_data_new$Overall_PitchMean.s = (Pitch_data_new$Overall_PitchMean - mean(Pitch_data_new$Overall_PitchMean))/sd(Pitch_data_new$Overall_PitchMean)
+
+
+```
+
+
+Step 3: Build a regression model predicting Pitch SD from Diagnosis.
+- how is the outcome distributed? (likelihood function)
+- how are the parameters of the likelihood distribution distributed? Which predictors should they be conditioned on?
+- use a skeptical/conservative prior (try out both!) for the effects of diagnosis. Remember you'll need to motivate it.
+- Describe and plot the estimates. Evaluate model quality
+
+```{r}
+
+
+
+```
+
+
+Step 4: Now re-run the model with the meta-analytic prior
+- Describe and plot the estimates. Evaluate model quality
+
+
+```{r}
+
+
+
+```
+
+
+Step 5: Compare the models
+- Plot priors and posteriors of the diagnosis effect in both models
+- Compare posteriors between the two models
+- Compare their relative distance from truth (WAIC)
+- Discuss how they compare and whether any of them is best.
+
+```{r}
+
+
+
+```
+
+
+Step 6: Prepare a nice write up of the analysis and answer the questions at the top.
+
+Optional step 7: how skeptical should a prior be?
+- Try different levels of skepticism and compare them using WAIC.
+
+Optional step 8: Include other predictors
+- Do age, gender and education improve the model?
+- Should they be main effects or interactions?
+
+Optional step 9: Bromance magic.
+- explore the bromance code below including random effects (by default with weakly informative priors)
+- learn how to change the prior
+- explore effects of trial, age, gender, including the appropriate random slopes
+- compare the models you created using WAIC and posterior predictive check (pp_check())
+
+
+```{r}
+
+brm_out <- brm(PitchSD ~ 1 + Diagnosis  +(1|ID_unique/Study), # Outcome as a function of the predictors as in lme4. 
+               data=Data, # Define the data
+               family=gaussian(), # Define the family. 
+               iter = 5000, warmup = 2000, cores = 4)
+summary(brm_out1)
+plot(brm_out1)
+
+```
+
