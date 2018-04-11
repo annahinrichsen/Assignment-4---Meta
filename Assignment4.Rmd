@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-library(readxl);library(brms);library(ggplot2);library(tibble);library(brmstools);library(data.table)
+library(readxl);library(brms);library(ggplot2);library(tibble);library(brmstools);library(data.table);library(rethinking)
 
 
 meta_data = read_excel("Assignment4MetaData.xlsx")
@@ -51,7 +51,7 @@ meta_data$StudyID = as.character(meta_data$StudyID)
 
 #brm = glmer(outcome ~ the effect of an intercept)
 Model = brm(MeanES|se(SdES) ~ 1 + (1|StudyID), data = meta_data, cores = 2, iter = 2000, chain = 2)
-
+summary(Model)
 
 #cores = the models take time to run, thereofore we split them on different processors 
 #chain
@@ -89,8 +89,10 @@ setnames(overall_PitchSd, "PitchSD", "Overall_PitchSD")
 
 Pitch_data_new = merge(overall_PitchSd, Pitch_data_new, by = "ID")
 
-#standardize pitch mean
-Pitch_data_new$Overall_PitchMean.s = (Pitch_data_new$Overall_PitchMean - mean(Pitch_data_new$Overall_PitchMean))/sd(Pitch_data_new$Overall_PitchMean)
+#standardize pitch sd
+Pitch_data_new$Overall_PitchSD.s = (Pitch_data_new$Overall_PitchSD - mean(Pitch_data_new$Overall_PitchSD))/sd(Pitch_data_new$Overall_PitchSD)
+
+
 
 
 ```
@@ -103,6 +105,7 @@ Step 3: Build a regression model predicting Pitch SD from Diagnosis.
 - Describe and plot the estimates. Evaluate model quality
 
 ```{r}
+
 
 
 
