@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 library(readxl);library(brms);library(ggplot2);library(tibble);library(brmstools);library(data.table);library(rethinking)
+library(bayesplot);library(cowplot)
 
 
 meta_data = read_excel("Assignment4MetaData.xlsx")
@@ -132,6 +133,9 @@ Model2 <- map(
 precis(Model2)
 plot(precis(Model2))
 
+
+
+
 #how is it distributed? - we expect to be distributed normally 
 #a lot of natural processes give rise to gaussian distributions 
 #PitchSd ~ Normal (mu, sigma) 
@@ -142,10 +146,13 @@ plot(precis(Model2))
 #beta ~ Normal(0,1) #conservative 
 #sigma ~ cauchy(0,2) #cauchy = going all the way to infinite
 
-#It seems that the outcome has a long tailed distribution 
-dens(Pitch_data_new$Overall_PitchSD)
+?sim
 
-sim.pitch = sim(Model2, data = Pitch_data_new, n = 100)
+#simulate data from model
+sim.pitch = sim(Model2, data = final_pitch_data, n = 1000)
+
+#using bayesplot
+pp_check_model2 = pp_check(final_pitch_data$Overall_PitchSD.s, sim.pitch, ppc_dens_overlay)
 
 #poterior predictive plot on top of raw data
 dens(sim.pitch, col = "red", xlim = c(-5, 5), ylim = c(0,1),  xlab = "PitchSD")
@@ -153,7 +160,7 @@ par(new=TRUE)
 dens(final_pitch_data$Overall_PitchSD.s, xlim = c(-5, 5), ylim = c(0,1), xlab = "PitchSD")
 title("PitchSD predicted ~ diagnosis")
 
-?dens
+
 
 ```
 
@@ -179,12 +186,30 @@ Model3 <- map(
         Overall_PitchSD.s ~ dnorm( mu , sigma ) , #pitch sd outcome = normally distibuted
         mu <- a + b*diagnosis ,
         a ~ dnorm(0,1), #normally distributed
-        b ~ dnorm(-6,.32),  #norammly distributed metaanalytic prior (from the ealier exercise (intercept estimate))
+        b ~ dnorm(-0.6,0.32),  #norammly distributed metaanalytic prior (from the ealier exercise (intercept estimate))
         sigma ~ dcauchy(0,2) #a cauchy distribution 
     ) ,
     data=final_pitch_data )
-precis(Model2)
-plot(precis(Model2))
+precis(Model3)
+
+
+
+#plot estimates
+plot(precis(Model3))
+
+#simulate
+sim.pitch.model3 = sim(Model3, data = final_pitch_data, n = 1000)
+
+pp_check_model3 = pp_check(final_pitch_data$Overall_PitchSD.s, sim.pitch.model3, ppc_dens_overlay)
+
+#posterior predictive plot
+dens(sim.pitch.model3, col = "red", xlim = c(-5, 5), ylim = c(0,1),  xlab = "PitchSD")
+par(new=TRUE)
+dens(final_pitch_data$Overall_PitchSD.s, xlim = c(-5, 5), ylim = c(0,1), xlab = "PitchSD")
+title("PitchSD predicted ~ diagnosis")
+
+
+
 
 ```
 
@@ -196,7 +221,64 @@ Step 5: Compare the models
 - Discuss how they compare and whether any of them is best.
 
 ```{r}
+#compare plots 
+plot_grid(pp_check_model2, pp_check_model3, labels = c('Model2_Conservative', 'Model3_Metaanalytic'))
 
+
+#compare the posteriors
+plot(coeftab(Model2,Model3))
+
+
+WAIC(Model2)
+WAIC(Model3)
+
+compare(Model2,Model3)
+
+
+
+#compaing pp checks = looks very similar. looking at the estimates the estimates look different though but the effect might be compensated by moving the intercept 
+#doesn't look like one model is better than the other 
+#WAIC test put a very tiny advantage to model with meta analytic priors but the se being sd being sp big that this is not difference that matter. If we have to choose between the two models, we could use a conceptual argument to use the model with meta analytic priors. We have a lot of extra knowledge from previous studies and it makes sence to include this knowledge.  
+
+
+
+```
+
+```{r}
+#try with map2stan()
+
+Model4 <- map2stan(
+    alist(
+        Overall_PitchSD.s ~ dnorm( mu , sigma ) , #pitch sd outcome = normally distibuted
+        mu <- a + b*diagnosis ,
+        a ~ dnorm(0,1), 
+        b ~ dnorm(0,0.1),  
+        sigma ~ dcauchy(0,2)
+    ) ,
+    data=final_pitch_data,
+    start=list(alpha=0,sigma=1) ,
+    chains=2 , iter=4000 , warmup=1000)
+
+Model5 <- map2stan(
+    alist(
+        Overall_PitchSD.s ~ dnorm( mu , sigma ) , #pitch sd outcome = normally distibuted
+        mu <- a + b*diagnosis ,
+        a ~ dnorm(0,1), 
+        b ~ dnorm(-0.6,0.32),  
+        sigma ~ dcauchy(0,2)
+    ) ,
+    data=final_pitch_data,
+    start=list(alpha=0,sigma=1) ,
+    chains=2 , iter=4000 , warmup=1000)
+
+#simulate
+sim.pitch.model4 = sim(Model4, data = final_pitch_data, n = 1000)
+sim.pitch.model5 = sim(Model5, data = final_pitch_data, n = 1000)
+
+pp_check_model4 = pp_check(final_pitch_data$Overall_PitchSD.s, sim.pitch.model4, ppc_dens_overlay)
+pp_check_model5 = pp_check(final_pitch_data$Overall_PitchSD.s, sim.pitch.model5, ppc_dens_overlay)
+
+plot_grid(pp_check_model4, pp_check_model5, labels = c('Model2_Conservative', 'Model3_Metaanalytic'))
 
 
 ```
