@@ -73,26 +73,32 @@ Step 2: Prepare the pitch SD data from last year
 
 ```{r}
 
-#get an overall mean from the pitch on all the trials 
-overall_PitchMean = aggregate(pitch_data[, 6], list(pitch_data$ID), mean)
-#chnge the column names 
-setnames(overall_PitchMean, "Group.1", "ID")
-setnames(overall_PitchMean, "PitchMean", "Overall_PitchMean")
-
-Pitch_data_new = merge(overall_PitchMean, pitch_data, by = "ID")
-
 #get an overall sd from the pitch on all the trials 
-overall_PitchSd = aggregate(pitch_data[, 7], list(pitch_data$ID), mean)
-#chnge the column names 
-setnames(overall_PitchSd, "Group.1", "ID")
+overall_PitchSd = aggregate(pitch_data[, 7], list(pitch_data$ID_unique), mean)
+#change the column names 
+setnames(overall_PitchSd, "Group.1", "ID_unique")
 setnames(overall_PitchSd, "PitchSD", "Overall_PitchSD")
 
-Pitch_data_new = merge(overall_PitchSd, Pitch_data_new, by = "ID")
+#merge with full data set
+Pitch_data_new = merge(overall_PitchSd, pitch_data, by = "ID_unique")
+
+#use only necessary columns
+final_pitch_data = data.frame(Pitch_data_new$ID_unique, Pitch_data_new$Overall_PitchSD, Pitch_data_new$diagnosis)
+
+#remove duplicates
+final_pitch_data = final_pitch_data[!duplicated(final_pitch_data), ]
+
+#setnames 
+setnames(final_pitch_data, "Pitch_data_new.ID_unique", "ID_unique")
+setnames(final_pitch_data, "Pitch_data_new.Overall_PitchSD", "Overall_PitchSD")
+setnames(final_pitch_data, "Pitch_data_new.diagnosis", "diagnosis")
+
+#_____________________________________________
+
+
 
 #standardize pitch sd
-Pitch_data_new$Overall_PitchSD.s = (Pitch_data_new$Overall_PitchSD - mean(Pitch_data_new$Overall_PitchSD))/sd(Pitch_data_new$Overall_PitchSD)
-
-
+final_pitch_data$Overall_PitchSD.s = (final_pitch_data$Overall_PitchSD - mean(final_pitch_data$Overall_PitchSD))/sd(final_pitch_data$Overall_PitchSD)
 
 
 ```
@@ -101,13 +107,53 @@ Pitch_data_new$Overall_PitchSD.s = (Pitch_data_new$Overall_PitchSD - mean(Pitch_
 Step 3: Build a regression model predicting Pitch SD from Diagnosis.
 - how is the outcome distributed? (likelihood function)
 - how are the parameters of the likelihood distribution distributed? Which predictors should they be conditioned on?
-- use a skeptical/conservative prior (try out both!) for the effects of diagnosis. Remember you'll need to motivate it.
+- use a skeptical/conservative prior for the effects of diagnosis. Remember you'll need to motivate it.
+
+Motivation: 
+beta: (0,.2) #between -.6/.6 (because 3 sd's on each side covers 99% of all the distribution - multiply .2 with the 3 sd's)
+most biological phenomena are normally distributed so in case you do not have more information about a biological phenomena it makes sense to assume a Gaussian distribution 
+we choose to assume sigma as a half cauchy distribution. Variation can be unfinitly big but the bigger it gets the more unlikely it most likely is. 
 - Describe and plot the estimates. Evaluate model quality
 
 ```{r}
 
+#Model2 = brm(Overall_PitchSD.s ~ diagnosis + (1|ID), data = Pitch_data_new, cores = 2, iter = 2000, chain = 2)
+#summary(Model2)
 
+Model2 <- map(
+    alist(
+        Overall_PitchSD.s ~ dnorm( mu , sigma ) , #pitch sd outcome = normally distibuted
+        mu <- a + b*diagnosis ,
+        a ~ dnorm(0,1), #normally distributed
+        b ~ dnorm(0,0.1),  #norammly distributed - conservative prior
+        sigma ~ dcauchy(0,2) #a cauchy distribution 
+    ) ,
+    data=final_pitch_data )
+precis(Model2)
+plot(precis(Model2))
 
+#how is it distributed? - we expect to be distributed normally 
+#a lot of natural processes give rise to gaussian distributions 
+#PitchSd ~ Normal (mu, sigma) 
+#mu = alpha (mean value for contrls) + beta* diagnosis(mean diffence bestween controls and skizo)
+
+#add priors:
+#alpha ~ Normal(0,1)   #mean 0 because it is standardized. 1 in sd will leave it free to vary as much as the original data
+#beta ~ Normal(0,1) #conservative 
+#sigma ~ cauchy(0,2) #cauchy = going all the way to infinite
+
+#It seems that the outcome has a long tailed distribution 
+dens(Pitch_data_new$Overall_PitchSD)
+
+sim.pitch = sim(Model2, data = Pitch_data_new, n = 100)
+
+#poterior predictive plot on top of raw data
+dens(sim.pitch, col = "red", xlim = c(-5, 5), ylim = c(0,1),  xlab = "PitchSD")
+par(new=TRUE)
+dens(final_pitch_data$Overall_PitchSD.s, xlim = c(-5, 5), ylim = c(0,1), xlab = "PitchSD")
+title("PitchSD predicted ~ diagnosis")
+
+?dens
 
 ```
 
@@ -116,9 +162,29 @@ Step 4: Now re-run the model with the meta-analytic prior
 - Describe and plot the estimates. Evaluate model quality
 
 
+data from the meta analytic prior: 
+changing beta priors 
+intercept
+Se(int)
+Sd(int)
+Se(sd(int))
+
+don't change priors for alpha (no information on mean pitch for control (intercept) from metaanalysis)
+don't change for sigma (the sigma is for variance between the subjects and the meta is variance between studies)
+
 ```{r}
 
-
+Model3 <- map(
+    alist(
+        Overall_PitchSD.s ~ dnorm( mu , sigma ) , #pitch sd outcome = normally distibuted
+        mu <- a + b*diagnosis ,
+        a ~ dnorm(0,1), #normally distributed
+        b ~ dnorm(-6,.32),  #norammly distributed metaanalytic prior (from the ealier exercise (intercept estimate))
+        sigma ~ dcauchy(0,2) #a cauchy distribution 
+    ) ,
+    data=final_pitch_data )
+precis(Model2)
+plot(precis(Model2))
 
 ```
 
