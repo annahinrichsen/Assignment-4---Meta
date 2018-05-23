@@ -131,7 +131,9 @@ Model2 <- map(
     ) ,
     data=final_pitch_data )
 precis(Model2)
-plot(precis(Model2))
+
+
+precis_m2 = plot(precis(Model2))
 
 
 
@@ -153,12 +155,15 @@ sim.pitch = sim(Model2, data = final_pitch_data, n = 1000)
 
 #using bayesplot
 pp_check_model2 = pp_check(final_pitch_data$Overall_PitchSD.s, sim.pitch, ppc_dens_overlay)
+pp_check_model2
 
 #poterior predictive plot on top of raw data
 dens(sim.pitch, col = "red", xlim = c(-5, 5), ylim = c(0,1),  xlab = "PitchSD")
 par(new=TRUE)
 dens(final_pitch_data$Overall_PitchSD.s, xlim = c(-5, 5), ylim = c(0,1), xlab = "PitchSD")
 title("PitchSD predicted ~ diagnosis")
+
+
 
 
 
@@ -195,12 +200,13 @@ precis(Model3)
 
 
 #plot estimates
-plot(precis(Model3))
+precis_m3 = plot(precis(Model3))
 
 #simulate
 sim.pitch.model3 = sim(Model3, data = final_pitch_data, n = 1000)
 
 pp_check_model3 = pp_check(final_pitch_data$Overall_PitchSD.s, sim.pitch.model3, ppc_dens_overlay)
+pp_check_model3
 
 #posterior predictive plot
 dens(sim.pitch.model3, col = "red", xlim = c(-5, 5), ylim = c(0,1),  xlab = "PitchSD")
@@ -221,13 +227,30 @@ Step 5: Compare the models
 - Discuss how they compare and whether any of them is best.
 
 ```{r}
-#compare plots 
+
+#plot priors and posteriors
+x <- seq(-3,3, length=1e5)
+y <- dnorm(x, 0, 0.5) 
+y.s <- dnorm(x, 0, 0.1) #sceptical
+y.m <- dnorm(x, -0.60, 0.33) #meta
+#prior_df = data.frame(x = rep(x,2), y = c(y, y.s, y.m), prior = c(rep("sceptical", length(y.s)), rep("meta", length(y.m)))
+                                                                
+                                                                  
+ggplot(prior_df, aes(x = x, y = y, color = prior)) + geom_line()
+#Beautiful
+  #As we expected: sceptical is more narrow
+  #Meta has a lower mean than original
+  #All in all - beautiful priors and pretty plot
+
+
+
+
+#compare 
 plot_grid(pp_check_model2, pp_check_model3, labels = c('Model2_Conservative', 'Model3_Metaanalytic'))
 
+plot_grid(precis_m2, precis_m3, labels = c("Model2_Conservative", "Model3_Metaanalytic"), ncol = 1, align = 'v')
 
-#compare the posteriors
 plot(coeftab(Model2,Model3))
-
 
 WAIC(Model2)
 WAIC(Model3)
@@ -239,6 +262,34 @@ compare(Model2,Model3)
 #compaing pp checks = looks very similar. looking at the estimates the estimates look different though but the effect might be compensated by moving the intercept 
 #doesn't look like one model is better than the other 
 #WAIC test put a very tiny advantage to model with meta analytic priors but the se being sd being sp big that this is not difference that matter. If we have to choose between the two models, we could use a conceptual argument to use the model with meta analytic priors. We have a lot of extra knowledge from previous studies and it makes sence to include this knowledge.  
+
+
+
+#plotting posteriors 
+#conservative priors
+post <- extract.samples(Model2)
+
+color_scheme_set("mix-teal-pink")
+
+mcmc_hist(post,
+transformations = list(), facet_args = list(), binwidth = 0.03,
+freq = TRUE)
+
+#metaanalytic
+post_meta <- extract.samples(Model3)
+color_scheme_set("mix-teal-orange")
+
+mcmc_hist(post_meta,
+transformations = list(), facet_args = list(), binwidth = 0.03,
+freq = TRUE)
+
+#dens conservative
+color_scheme_set("pink")
+mcmc_dens(post)
+
+#dens meta
+color_scheme_set("viridis")
+mcmc_dens(post_meta)
 
 
 
